@@ -1,0 +1,368 @@
+openapi: 3.0.1
+servers:
+  - description: Dev server
+    url: https://dev-specommentor.redmadrobot.com/api/v1
+info:
+  title: Speccomentor API
+  version: 0.0.1
+  description: >
+    API для согласования спеков
+tags:
+  - name: Авторизация
+  - name: Каталог
+paths:
+  /login:
+    get:
+      tags:
+        - Авторизация
+      summary: Метод для переадресации на страницу логина Google
+      operationId: authLogin
+      responses:
+        "302":
+          description: Переадресовано в Google
+        "400":
+          $ref: "#/components/responses/LoginRedirectError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+  /google-callback:
+    get:
+      tags:
+        - Авторизация
+      summary: Возварт из Google
+      operationId: authCallback
+      parameters:
+        - in: query
+          name: code
+          schema:
+            type: string
+          required: true
+          description: Код доступа Google
+        - in: query
+          name: state
+          schema:
+            type: string
+          required: true
+          description: Статус строки
+      responses:
+        "200":
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthToken"
+              example:
+                token: 8b5504c9c5337347d376c90d93e52a3f
+        "400":
+          $ref: "#/components/responses/LoginError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+  /specs:
+    get:
+      tags:
+        - Каталог
+      summary: Получить список спек
+      operationId: getSpecList
+      security:
+        - ApiKeyAuth: [ "user" ]
+      responses:
+        "200":
+          description: Результаты успешно выгружены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpecList"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+  /specs/{spec_id}:
+    get:
+      tags:
+        - Каталог
+      summary: Метод получения спеки с комментариями
+      operationId: getSpecWithComments
+      security:
+        - ApiKeyAuth: [ "user" ]
+      parameters:
+        - in: path
+          name: spec_id
+          schema:
+            type: integer
+          required: true
+          description: Уникальный идентификатор спеки
+      responses:
+        "200":
+          description: Результаты успешно выгружены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpecWithComments"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+  /comments/{comment_id}:
+    get:
+      tags:
+        - Каталог
+      summary: Метод получения комментария
+      operationId: postComment
+      security:
+        - ApiKeyAuth: [ "user" ]
+      parameters:
+        - in: path
+          name: comment_id
+          schema:
+            type: integer
+          required: true
+          description: Уникальный идентификатор комментария
+      responses:
+        "200":
+          description: Результаты успешно выгружены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+    patch:
+      tags:
+        - Каталог
+      summary: Метод редактирования комментария
+      operationId: patchComment
+      security:
+        - ApiKeyAuth: [ "user" ]
+      parameters:
+        - in: path
+          name: comment_id
+          schema:
+            type: integer
+          required: true
+          description: Уникальный идентификатор комментария
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Comment"
+      responses:
+        "200":
+          description: Комментарий обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+    delete:
+      tags:
+        - Каталог
+      summary: Метод удаления комментария
+      operationId: deleteComment
+      security:
+        - ApiKeyAuth: [ "user" ]
+      parameters:
+        - in: path
+          name: comment_id
+          schema:
+            type: integer
+          required: true
+          description: Уникальный идентификатор комментария
+      responses:
+        "200":
+          description: Комментарий удалён
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/ServiceError"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Access-Token
+  responses:
+    LoginRedirectError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+          examples:
+            Не удалось переадресовать запрос:
+              value:
+                code: login_redirect_error
+                description: Не удалось переадресовать запрос
+    LoginError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+          examples:
+            Ошибка входа:
+              value:
+                code: invalid_grant
+                description: Bad Request
+    NotFoundError:
+      description: Объект не найден
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  description:
+                    type: string
+          example:
+            error:
+              code: not_found_error
+              description: "Не удалось найти объект"
+    ServiceError:
+      description: Ошибка сервиса 
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+          example:
+            error:
+              code: service_error
+              description: Ошибка сервиса
+  schemas:
+    AuthToken:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+    APIError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            description:
+              type: string
+    Comment:
+      description: Комментарий к строчке в спеке
+      type: object
+      required:
+        - spec_id
+        - row_number
+        - text
+        - author_id
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор комментария
+          example: 123
+        spec_id:
+          type: integer
+          description: Уникальный идентификатор спеки
+          example: 56
+        row_number:
+          type: integer
+          description: Номер строки в спеке
+          example: 42
+        text:
+          type: string
+          description: Комментарий
+          example: Очень интересное замечание
+        author_id:
+          type: integer
+          description: Уникальный идентификатор пользователя
+          example: 17
+        author_name:
+          type: string
+          description: Имя пользователя
+          example: Carl Johnson
+        date:
+          type: string
+          format: date-time
+          description: Дата публикации комментария
+          example: "2021-12-13T08:30:00Z"
+    SpecWithComments:
+      description: Текст спеки с комментариями
+      type: object
+      required:
+        - name
+        - text
+        - author_id
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор спеки
+          example: 56
+        name:
+          type: string
+          description: Название обсуждаемой спеки
+          example: "marketplace api ver 1"
+        text:
+          type: string
+          description: содержание спецификации
+          example: "openapi: 3.0.1"
+        author_id:
+          type: integer
+          description: Уникальный идентификатор пользователя
+          example: 17
+        author_name:
+          type: string
+          description: Имя пользователя
+          example: Carl Johnson
+        date:
+          type: string
+          format: date-time
+          description: Дата публикации комментария
+          example: "2021-12-13T08:30:00Z"
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+    Spec:
+      description: Просто превью спеки
+      type: object
+      required:
+        - name
+        - author_name
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор спеки
+          example: 123
+        name:
+          type: string
+          description: Название обсуждаемой спеки
+          example: "marketplace api ver 1"
+        author_name:
+          type: string
+          description: Имя пользователя
+          example: Carl Johnson
+        date:
+          type: string
+          format: date-time
+          description: Дата публикации комментария
+          example: "2021-12-13T08:30:00Z"
+    SpecList:
+      description: Список спецификаций
+      type: object
+      required:
+        - content
+        - totalCount
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Spec"
+        totalCount:
+          type: integer
+          description: Общее количество элементов
+          example: 10
